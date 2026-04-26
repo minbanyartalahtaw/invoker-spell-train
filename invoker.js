@@ -20,7 +20,6 @@ var spells = {
   EEE: { name: "sun", key: "EEE" },
 };
 var spellKeys = Object.keys(spells);
-var opacity;
 
 function createFallBox() {
   var nextTime = 3500 / level;
@@ -30,27 +29,31 @@ function createFallBox() {
     var $box = $(
       '<div class="box ' + spell + '">' + spells[spellKey].key + "</div>"
     ).appendTo(".board");
-    var top = "-" + boxSize + "px";
+    
     var left = Math.floor(boxSize * (Math.random() * 3)) + "px";
-    opacity = 1 - level / 5;
-    if (opacity < 0) {
-      opacity = 0;
-    }
-    $box
-      .css({
-        top: top,
-        left: left,
-        color: "rgba(255,255,255," + opacity + ")",
-        "text-shadow": "0 2px 5px rgba(0,0,0," + opacity + ")",
-      })
-      .animate(
-        { top: boardHeight + "px" },
-        13000 / level,
-        "linear",
-        function () {
-          $box.remove();
-        }
-      );
+    var duration = 13000 / level;
+    var distance = boardHeight + boxSize + 50;
+
+    $box.css({
+      top: "-" + boxSize + "px",
+      left: left,
+      transform: "translateY(0)",
+      transition: "none",
+      willChange: "transform"
+    });
+
+    // Force reflow so the next transform animates from the starting point
+    $box[0].offsetHeight;
+
+    $box.css({
+      transition: "transform " + duration + "ms linear",
+      transform: "translateY(" + distance + "px)"
+    });
+
+    setTimeout(function () {
+      $box.remove();
+    }, duration);
+
     createFallBox();
   }, nextTime);
 }
@@ -59,59 +62,63 @@ createFallBox();
 
 $(document).on("keydown", function (e) {
   var code = e.keyCode || e.which;
-  //console.log(code);
   var letter = "";
   switch (code) {
-    case 81:
-      letter = "Q";
-      break;
-    case 87:
-      letter = "W";
-      break;
-    case 69:
-      letter = "E";
-      break;
-    case 82:
-      letter = "R";
-      break;
+    case 81: letter = "Q"; break;
+    case 90: letter = "Q"; break; // Support Z (French keyboard)
+    case 87: letter = "W"; break;
+    case 69: letter = "E"; break;
+    case 82: letter = "R"; break;
   }
+
   if (letter) {
     if (letter == "R") {
-      $(".invoke")
-        .css({ transition: "none", opacity: 1 })
-        .finish()
-        .animate({ opacity: 0.5 }, 500, function () {
-          $(".invoke").css({
-            transition: "all 0.3s",
-            color: "rgba(255,255,255," + opacity + ")",
-            "text-shadow": "0 2px 5px rgba(0,0,0," + opacity + ")",
-          });
-        });
-      // get letters
-      var letters = $($(".normal").html()).text();
-      if (letters.length == 3) {
-        // sort letters
-        var spellKey = letters.split("").sort().join("");
-        var spell = spells[spellKey].name;
-        var match = $(".box." + spell).first();
+      $(".invoke").addClass("active");
+      setTimeout(function() { $(".invoke").removeClass("active"); }, 100);
+
+      // get letters from current orbs
+      var currentOrbs = "";
+      $(".normal .hability").each(function() {
+        if ($(this).hasClass("Q")) currentOrbs += "Q";
+        if ($(this).hasClass("W")) currentOrbs += "W";
+        if ($(this).hasClass("E")) currentOrbs += "E";
+      });
+
+      if (currentOrbs.length == 3) {
+        var spellKey = currentOrbs.split("").sort().join("");
+        var spellName = spells[spellKey].name;
+        var match = $(".box." + spellName).first();
+        
         if (match.length == 1) {
-          level += 0.01;
           points += 1;
-          $(".points").text(points);
-          match.finish();
+          
+          // Animate score
+          $(".points").text(points).addClass("pulse");
+          setTimeout(function() { $(".points").removeClass("pulse"); }, 400);
+          
+          // Animate hit
+          match.addClass("hit").fadeOut(100, function() {
+            $(this).remove();
+          });
         }
-        //console.log(spell);
       }
     } else {
       if ($(".normal .hability").length == 3) {
         $(".normal .hability").first().remove();
       }
-      $('<div class="hability ' + letter + '">' + letter + "</div>")
-        .css({
-          color: "rgba(255,255,255," + opacity + ")",
-          "text-shadow": "0 2px 5px rgba(0,0,0," + opacity + ")",
-        })
+      var $newHability = $('<div class="hability ' + letter + '">' + letter + "</div>")
         .appendTo(".habilities .normal");
+      
+      // Visual feedback for the new orb
+      $newHability.addClass("active");
+      setTimeout(function() { $newHability.removeClass("active"); }, 100);
     }
   }
+});
+
+$(".speed-slider").on("input", function () {
+  level = parseFloat($(this).val());
+  $(".speed-value").text(level.toFixed(1) + "x");
+  clearTimeout(timeoutHandler);
+  createFallBox();
 });
